@@ -1,0 +1,47 @@
+services:
+  dmxforge:
+    image: dmxforge:local
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      SECRET_KEY: ${SECRET_KEY}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.dmxforge.rule: Host(`${PUBLIC_DOMAIN}`)
+      traefik.http.routers.dmxforge.entrypoints: websecure
+      traefik.http.routers.dmxforge.tls.certresolver: letsencrypt
+      traefik.http.services.dmxforge.loadbalancer.server.port: "3000"
+      traefik.http.middlewares.dmxforge-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.dmxforge-headers.headers.browserXssFilter: "true"
+      traefik.http.middlewares.dmxforge-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.dmxforge-ratelimit.ratelimit.average: "100"
+      traefik.http.middlewares.dmxforge-ratelimit.ratelimit.burst: "50"
+      traefik.http.routers.dmxforge.middlewares: dmxforge-headers@docker,dmxforge-ratelimit@docker
+    networks:
+      - traefik
+    volumes:
+      - dmxforge-data:/app/data
+
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --configFile=/etc/traefik/traefik.yml
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./deploy/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - traefik
+
+volumes:
+  dmxforge-data:
+  traefik-letsencrypt:
+
+networks:
+  traefik:

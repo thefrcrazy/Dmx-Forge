@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="grid-stats">
+  <article class="stat-pill">
+    <div class="stat-pill-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+        </svg>
+      </div>
+    <div class="stat-pill-content">
+      <span class="stat-pill-label">Total livraisons</span>
+      <strong class="stat-pill-value">{{ total_deliveries }}</strong>
+    </div>
+  </article>
+  
+  <article class="stat-pill">
+    <div class="stat-pill-icon" style="color: var(--success); background: var(--success-bg);">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+    <div class="stat-pill-content">
+      <span class="stat-pill-label">Traitees</span>
+      <strong class="stat-pill-value">{{ processed_deliveries }}</strong>
+    </div>
+  </article>
+  
+  <article class="stat-pill">
+    <div class="stat-pill-icon" style="color: var(--danger); background: var(--danger-bg);">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+    <div class="stat-pill-content">
+      <span class="stat-pill-label">Echouees</span>
+      <strong class="stat-pill-value">{{ failed_deliveries }}</strong>
+    </div>
+  </article>
+  
+  <article class="stat-pill">
+    <div class="stat-pill-icon" style="color: var(--accent-primary); background: rgba(244, 123, 35, 0.1);">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        </svg>
+      </div>
+    <div class="stat-pill-content">
+      <span class="stat-pill-label">Messages Discord</span>
+      <strong class="stat-pill-value">{{ discord_messages_sent }}</strong>
+    </div>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">7 derniers jours</p>
+      <h2>Activite</h2>
+    </div>
+    <span class="badge info">SQLite live</span>
+  </div>
+  <div class="activity-surface">
+    <div class="activity-chart">
+      {% for point in activity %}
+      <div class="activity-column">
+        <span class="activity-count">{{ point.count }}</span>
+        <div class="activity-bar-shell">
+          <div class="activity-bar" style="height: {{ point.height }}%;"></div>
+        </div>
+        <span class="activity-label">{{ point.day_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <aside class="activity-summary">
+      <div class="activity-summary-header">
+        <span class="activity-summary-label">Signal hebdo</span>
+        <h3 class="activity-summary-title">Flux webhook sur les 7 derniers jours</h3>
+        <p class="activity-summary-copy">Lecture rapide du volume traité, avec un focus immédiat sur le pic de charge et la répartition jour par jour.</p>
+      </div>
+      <div class="activity-kpi-grid">
+        <article class="activity-kpi">
+          <span class="activity-summary-label">Total 7 jours</span>
+          <strong class="activity-kpi-value">{{ activity_total_count }}</strong>
+          <span class="activity-kpi-meta">livraisons recues sur la fenetre observee</span>
+        </article>
+        <article class="activity-kpi">
+          <span class="activity-summary-label">Jour de pointe</span>
+          <strong class="activity-kpi-value">{{ activity_peak_count }}</strong>
+          <span class="activity-kpi-meta">{{ activity_peak_label }}</span>
+        </article>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="panel-grid panel-grid-2">
+  <article class="card">
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Top 5</p>
+        <h2>Depots actifs</h2>
+      </div>
+    </div>
+    <div class="metric-list">
+      {% for row in top_repositories %}
+      <div class="metric-list-item">
+        <span>{{ row.label }}</span>
+        <strong>{{ row.value }}</strong>
+      </div>
+      {% endfor %}
+      {% if top_repositories.is_empty() %}
+      <p class="muted">Aucune donnee pour le moment.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Top 5</p>
+        <h2>Types d'evenements</h2>
+      </div>
+    </div>
+    <div class="metric-list">
+      {% for row in top_events %}
+      <div class="metric-list-item">
+        <span>{{ row.label }}</span>
+        <strong>{{ row.value }}</strong>
+      </div>
+      {% endfor %}
+      {% if top_events.is_empty() %}
+      <p class="muted">Aucune donnee pour le moment.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+<section class="card card--table">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Flux recent</p>
+      <h2>Dernieres livraisons</h2>
+    </div>
+  </div>
+
+  {% if recent_deliveries.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+    </svg>
+    <h3>Aucune livraison pour l'instant</h3>
+    <p>
+      Creez une source, configurez un token puis envoyez un webhook de test pour remplir
+      le dashboard.
+    </p>
+    <div style="margin-top: 1rem;">
+      <a href="/sources" class="button primary">Configurer une source</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Provider</th>
+          <th>Evenement</th>
+          <th>Repository</th>
+          <th>Statut</th>
+          <th>Recu le</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_deliveries %}
+        <tr>
+          <td><code>{{ row.short_id }}</code></td>
+          <td>{{ row.provider }}</td>
+          <td>{{ row.event_type }}</td>
+          <td>{{ row.repository }}</td>
+          <td><span class="badge {{ row.status_class }}">{{ row.status }}</span></td>
+          <td>{{ row.received_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

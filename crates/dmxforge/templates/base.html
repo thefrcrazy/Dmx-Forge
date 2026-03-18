@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark" data-theme-preference="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ shell.page_title }} · {{ shell.app_name }}</title>
+    <script>
+      (function () {
+        const storageKey = "dmxforge-theme";
+        const allowedThemes = new Set(["auto", "dark", "light"]);
+        const root = document.documentElement;
+        let preference = "auto";
+
+        try {
+          const savedPreference = localStorage.getItem(storageKey);
+          if (allowedThemes.has(savedPreference)) {
+            preference = savedPreference;
+          }
+        } catch (_) {}
+
+        let resolvedTheme = preference;
+        if (preference === "auto") {
+          const systemPrefersDark =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+          resolvedTheme = systemPrefersDark ? "dark" : "light";
+        }
+
+        root.setAttribute("data-theme-preference", preference);
+        root.setAttribute("data-theme", resolvedTheme);
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/app.css?v=19" />
+    <link rel="icon" href="/static/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/static/favicon.png" />
+    <meta property="og:image" content="/static/favicon.png" />
+    <script src="/static/app.js?v=19" defer></script>
+  </head>
+  <body>
+    <div class="app-layout">
+      {% if shell.current_user.is_authenticated %}
+      <header class="app-header">
+        <a href="/" class="brand" style="display: flex; align-items: center; gap: 8px;">
+          <img src="/static/favicon.png" alt="DmxForge Logo" width="24" height="24" style="border-radius: 4px;" />
+          <span style="font-weight: 700;">DmxForge</span>
+        </a>
+        <div class="flex items-center gap-4">
+          <div class="user-dropdown">
+            <div class="user-dropdown-trigger" data-user-dropdown-toggle>
+              <span class="user-chip-name">{{ shell.current_user.username }}</span>
+              <span class="user-chip-role">{{ shell.current_user.role_label }}</span>
+              <svg class="user-chip-caret" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div class="user-dropdown-menu">
+              <div class="user-dropdown-header">
+                <strong class="user-dropdown-name">{{ shell.current_user.username }}</strong>
+                <span class="user-dropdown-role">{{ shell.current_user.role_label }}</span>
+              </div>
+              <div class="user-dropdown-section">
+                <div class="user-dropdown-label-row">
+                  <span class="user-dropdown-label">Thème</span>
+                  <span class="text-muted" style="font-size: 12px;" data-theme-current>Auto</span>
+                </div>
+                <div class="theme-option-group" role="group" aria-label="Theme">
+                  <button class="theme-option" type="button" data-theme-option="auto">Auto</button>
+                  <button class="theme-option" type="button" data-theme-option="dark">Dark</button>
+                  <button class="theme-option" type="button" data-theme-option="light">Light</button>
+                </div>
+              </div>
+              <div class="menu-separator"></div>
+              <form method="post" action="/logout" style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" />
+                <button class="user-dropdown-item" type="submit">Déconnexion</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </header>
+      {% endif %}
+
+      <div class="app-body">
+        {% if shell.current_user.is_authenticated %}
+        <aside class="app-sidebar">
+          <nav class="nav-list">
+            {% for item in shell.nav_items %}
+            <a class="nav-link{% if item.active %} is-active{% endif %}" href="{{ item.href }}">
+              {% if item.label == "Dashboard" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+              {% else if item.label == "Sources" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+              {% else if item.label == "Discord" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+              {% else if item.label == "Templates" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              {% else if item.label == "Routes" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              {% else if item.label == "Livraisons" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              {% else if item.label == "Utilisateurs" %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+              {% else %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              {% endif %}
+              <span>{{ item.label }}</span>
+            </a>
+            {% endfor %}
+          </nav>
+        </aside>
+        {% endif %}
+
+        
+        <main class="app-main">
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">{{ shell.page_eyebrow }}</p>
+              <h1>{{ shell.page_title }}</h1>
+              <p class="text-muted">{{ shell.page_summary }}</p>
+            </div>
+          </header>
+          {% block content %}{% endblock %}
+        </main>
+
+      </div>
+    </div>
+
+    {% if shell.flash.has_notice %}
+    <div class="toast-container" data-toast>
+      <div class="toast {{ shell.flash.level_class }}">{{ shell.flash.message }}</div>
+    </div>
+    {% endif %}
+
+    {% block overlays %}{% endblock %}
+  </body>
+</html>

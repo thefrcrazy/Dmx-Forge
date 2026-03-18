@@ -1,0 +1,17 @@
+services:
+  dmxforge:
+    build:
+      context: .
+    command: cargo run -p dmxforge
+    working_dir: /app
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-this-with-a-random-32-char-secret}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - cargo-target:/app/target
+
+volumes:
+  cargo-target:

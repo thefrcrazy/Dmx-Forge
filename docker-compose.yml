@@ -1,0 +1,16 @@
+services:
+  dmxforge:
+    image: dmxforge:local
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-this-with-a-random-32-char-secret}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+    ports:
+      - "3000:3000"
+    volumes:
+      - dmxforge-data:/app/data
+
+volumes:
+  dmxforge-data:

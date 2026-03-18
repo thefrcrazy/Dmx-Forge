@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Provider intake</p>
+      <h2>Sources webhook</h2>
+      <p class="section-summary">Configurez les endpoints entrants, les secrets de verification et les filtres par depot, branche et evenement.</p>
+    </div>
+    {% if shell.current_user.permissions.sources_write %}
+    <a class="button primary" href="/sources?modal=create">New source</a>
+    {% endif %}
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-pill">
+      <strong>{{ total_count }}</strong>
+      <span>Total</span>
+    </div>
+    <div class="stat-pill success">
+      <strong>{{ active_count }}</strong>
+      <span>Actives</span>
+    </div>
+    <div class="stat-pill warning">
+      <strong>{{ inactive_count }}</strong>
+      <span>Inactives</span>
+    </div>
+  </div>
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid" method="get" action="/sources">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Name, provider, repository..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Provider</span>
+      <select name="provider" class="select">
+        <option value="">All</option>
+        <option value="github"{% if filters.provider == "github" %} selected{% endif %}>GitHub</option>
+        <option value="gitlab"{% if filters.provider == "gitlab" %} selected{% endif %}>GitLab</option>
+        <option value="gitea"{% if filters.provider == "gitea" %} selected{% endif %}>Gitea</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="active"{% if filters.status == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if filters.status == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/sources">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Runtime config</p>
+      <h2>Registered sources</h2>
+    </div>
+    <span class="pill">{{ sources.len() }} visible</span>
+  </div>
+
+  {% if sources.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <h3>No source matches the current filter</h3>
+    <p>Create a GitHub, GitLab or Gitea source to obtain a dedicated webhook URL.</p>
+    {% if shell.current_user.permissions.sources_write %}
+    <a class="button primary" href="/sources?modal=create">Create source</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="table-shell">
+	    <table>
+	      <thead>
+	        <tr>
+	          <th>Name</th>
+	          <th>Webhook URL</th>
+	          <th>Routing</th>
+	          <th>Updated</th>
+	          <th>Actions</th>
+	        </tr>
+      </thead>
+      <tbody>
+	        {% for source in sources %}
+	        <tr>
+	          <td>
+	            <div class="table-stack">
+	              <strong>{{ source.name }}</strong>
+	              <span class="muted-line">{{ source.provider }}</span>
+	            </div>
+	          </td>
+	          <td>
+	            <div class="table-copy">
+	              <code>{{ source.webhook_url }}</code>
+	              <button class="button ghost small" type="button" data-copy-text="{{ source.webhook_url }}">Copy</button>
+	            </div>
+	          </td>
+	          <td>
+	            <div class="table-stack">
+	              <span class="badge {{ source.status_class }}">{{ source.status_label }}</span>
+	              <span class="muted-line">{{ source.filters_summary }}</span>
+	              <span class="muted-line">{{ source.secret_summary }}</span>
+	            </div>
+	          </td>
+	          <td><span class="table-time">{{ source.updated_at }}</span></td>
+	          <td>
+            {% if shell.current_user.permissions.sources_write %}
+            <div class="inline-actions table-actions">
+              <a class="button ghost small" href="{{ source.edit_url }}">Edit</a>
+              <form method="post" action="{{ source.toggle_action }}">
+                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">{{ source.toggle_label }}</button>
+              </form>
+              <form method="post" action="{{ source.regenerate_action }}">
+                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">Rotate token</button>
+              </form>
+              <a class="button ghost small danger-text" href="{{ source.delete_url }}">Delete</a>
+            </div>
+            {% else %}
+            <span class="muted-line">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block overlays %}
+{% if shell.current_user.permissions.sources_write %}
+<div class="modal-backdrop{% if show_create_modal %} is-open{% endif %}" data-modal-backdrop data-close-url="/sources">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Create intake</p>
+        <h2>{{ create_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ create_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" value="{{ create_form.name }}" placeholder="GitHub main repo" class="input" />
+        </label>
+        <label class="field">
+          <span>Provider</span>
+          <select name="provider" class="select">
+            <option value="github"{% if create_form.provider == "github" %} selected{% endif %}>GitHub</option>
+            <option value="gitlab"{% if create_form.provider == "gitlab" %} selected{% endif %}>GitLab</option>
+            <option value="gitea"{% if create_form.provider == "gitea" %} selected{% endif %}>Gitea</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Webhook secret</span>
+        <input type="text" name="webhook_secret" value="{{ create_form.webhook_secret }}" placeholder="Optional shared secret" class="input" />
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Repository filter</span>
+          <input type="text" name="repository_filter" value="{{ create_form.repository_filter }}" placeholder="owner/repo" class="input" />
+        </label>
+        <label class="field checkbox-field">
+          <input type="checkbox" name="is_active" value="1"{% if create_form.is_active %} checked{% endif %}  />
+          <span>Source active immediately</span>
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Allowed branches</span>
+          <textarea name="allowed_branches" rows="4" placeholder="main&#10;release/*" class="textarea">{{ create_form.allowed_branches }}</textarea>
+        </label>
+        <label class="field">
+          <span>Allowed events</span>
+          <div class="checkbox-select" data-event-multiselect>
+            <input type="hidden" name="allowed_events" value="{{ create_form.allowed_events }}" data-event-multiselect-input class="input" />
+            <button class="checkbox-select-trigger" type="button" data-event-multiselect-trigger aria-haspopup="listbox" aria-expanded="false">
+              <span class="checkbox-select-value" data-event-multiselect-value>All events</span>
+              <span class="custom-select-indicator" aria-hidden="true"></span>
+            </button>
+            <div class="checkbox-select-menu" data-event-multiselect-menu>
+              <div class="checkbox-select-options" data-event-multiselect-options></div>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ create_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_edit_modal && shell.current_user.permissions.sources_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/sources">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Edit intake</p>
+        <h2>{{ edit_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <div class="summary-list">
+      <div class="summary-item">
+        <span>Token</span>
+        <code>{{ edit_form.token }}</code>
+      </div>
+      <div class="summary-item">
+        <span>Webhook URL</span>
+        <div class="table-copy">
+          <code>{{ edit_form.webhook_url }}</code>
+          <button class="button ghost small" type="button" data-copy-text="{{ edit_form.webhook_url }}">Copy</button>
+        </div>
+      </div>
+      <div class="summary-item">
+        <span>Rotate token</span>
+        <form method="post" action="{{ edit_form.regenerate_action }}">
+          <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+          <button class="button ghost small" type="submit">Generate new token</button>
+        </form>
+      </div>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ edit_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" value="{{ edit_form.name }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Provider</span>
+          <select name="provider" class="select">
+            <option value="github"{% if edit_form.provider == "github" %} selected{% endif %}>GitHub</option>
+            <option value="gitlab"{% if edit_form.provider == "gitlab" %} selected{% endif %}>GitLab</option>
+            <option value="gitea"{% if edit_form.provider == "gitea" %} selected{% endif %}>Gitea</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Webhook secret</span>
+        <input type="text" name="webhook_secret" value="{{ edit_form.webhook_secret }}" class="input" />
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Repository filter</span>
+          <input type="text" name="repository_filter" value="{{ edit_form.repository_filter }}" class="input" />
+        </label>
+        <label class="field checkbox-field">
+          <input type="checkbox" name="is_active" value="1"{% if edit_form.is_active %} checked{% endif %}  />
+          <span>Source active</span>
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Allowed branches</span>
+          <textarea name="allowed_branches" rows="4" class="textarea">{{ edit_form.allowed_branches }}</textarea>
+        </label>
+        <label class="field">
+          <span>Allowed events</span>
+          <div class="checkbox-select" data-event-multiselect>
+            <input type="hidden" name="allowed_events" value="{{ edit_form.allowed_events }}" data-event-multiselect-input class="input" />
+            <button class="checkbox-select-trigger" type="button" data-event-multiselect-trigger aria-haspopup="listbox" aria-expanded="false">
+              <span class="checkbox-select-value" data-event-multiselect-value>All events</span>
+              <span class="custom-select-indicator" aria-hidden="true"></span>
+            </button>
+            <div class="checkbox-select-menu" data-event-multiselect-menu>
+              <div class="checkbox-select-options" data-event-multiselect-options></div>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ edit_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_delete_modal && shell.current_user.permissions.sources_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/sources">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Destructive action</p>
+        <h2>Delete source</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <p class="section-summary">This will remove <strong>{{ delete_target_name }}</strong> and stop accepting webhooks for its token.</p>
+    <div class="modal-actions">
+      <button class="button secondary" type="button" data-close-modal>Cancel</button>
+      <form method="post" action="{{ delete_target_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary danger-button" type="submit">Delete source</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

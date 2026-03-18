@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-container">
+<section class="auth-page">
+  <div class="card auth-card">
+    <div class="auth-copy">
+      <p class="eyebrow">First boot</p>
+      <h2>Create the first superadmin</h2>
+      <p>Ce compte debloque l'interface d'administration. Le mot de passe est hashé en Argon2 avant stockage.</p>
+    </div>
+
+    <form class="stack-grid" method="post" action="/setup">
+      <input type="hidden" name="guest_csrf_token" value="{{ form.guest_csrf_token }}" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" name="username" value="{{ form.username }}" autocomplete="username" autofocus class="input" />
+        </label>
+
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ form.email }}" autocomplete="email" class="input" />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="new-password" class="input" />
+        </label>
+
+        <label class="field">
+          <span>Confirm password</span>
+          <input type="password" name="password_confirmation" autocomplete="new-password" class="input" />
+        </label>
+      </div>
+
+      <p class="auth-alt">Minimum 12 caracteres. Si un administrateur existe deja, l'application redirige automatiquement vers <a href="/login">/login</a>.</p>
+
+      <div class="modal-actions">
+        <button class="button primary" type="submit">Create superadmin</button>
+      </div>
+    </form>
+  </div>
+</section>
+</div>
+{% endblock %}

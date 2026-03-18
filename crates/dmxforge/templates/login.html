@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-container">
+<section class="auth-page">
+  <div class="card auth-card">
+    <div class="auth-copy">
+      <p class="eyebrow">Server-side session</p>
+      <h2>Login</h2>
+      <p>Connectez-vous avec votre nom d'utilisateur ou votre email pour acceder au shell d'administration.</p>
+    </div>
+
+    <form class="stack-grid" method="post" action="/login">
+      <input type="hidden" name="guest_csrf_token" value="{{ form.guest_csrf_token }}" />
+      <label class="field">
+        <span>Username or email</span>
+        <input type="text" name="login" value="{{ form.login }}" autocomplete="username" autofocus class="input" />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" class="input" />
+      </label>
+
+      <div class="modal-actions">
+        <button class="button primary" type="submit">Login</button>
+      </div>
+    </form>
+  </div>
+</section>
+</div>
+{% endblock %}

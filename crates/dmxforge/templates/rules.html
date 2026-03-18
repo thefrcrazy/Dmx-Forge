@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Routing matrix</p>
+      <h2>Routing rules</h2>
+      <p class="section-summary">Chaque regle relie une source optionnelle, un template et une destination avec des filtres provider, evenement, branche, repo et skip keyword.</p>
+    </div>
+    {% if can_create_rule && shell.current_user.permissions.rules_write %}
+    <a class="button primary" href="/rules?modal=create">New route</a>
+    {% else %}
+    <span class="button secondary disabled">Need destination + template</span>
+    {% endif %}
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-pill">
+      <strong>{{ total_count }}</strong>
+      <span>Total</span>
+    </div>
+    <div class="stat-pill success">
+      <strong>{{ active_count }}</strong>
+      <span>Actives</span>
+    </div>
+    <div class="stat-pill warning">
+      <strong>{{ inactive_count }}</strong>
+      <span>Inactives</span>
+    </div>
+  </div>
+
+  {% if !can_create_rule %}
+  <div class="note-card">
+    <strong>Prerequisites missing</strong>
+    <p>Create at least one destination and one template before adding routing rules.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid" method="get" action="/rules">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Rule, source, template or destination..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="active"{% if filters.status == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if filters.status == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/rules">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Source -> Template -> Destination</p>
+      <h2>Registered rules</h2>
+    </div>
+    <span class="pill">{{ rules.len() }} visible</span>
+  </div>
+
+  {% if rules.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V4.5m6 2.25V4.5m-9 7.5h12m-13.5 7.5h15A2.25 2.25 0 0021.75 17.25v-9A2.25 2.25 0 0019.5 6h-15A2.25 2.25 0 002.25 8.25v9A2.25 2.25 0 004.5 19.5z" />
+    </svg>
+    <h3>No routing rule matches the current filter</h3>
+    <p>Once rules exist, they document the exact path from intake to Discord delivery.</p>
+    {% if can_create_rule && shell.current_user.permissions.rules_write %}
+    <a class="button primary" href="/rules?modal=create">Create rule</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Association</th>
+          <th>Filters</th>
+          <th>Order</th>
+          <th>Status</th>
+          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr>
+          <td><strong>{{ rule.name }}</strong></td>
+          <td class="cell-soft">{{ rule.pipeline_summary }}</td>
+          <td class="cell-soft">{{ rule.filters_summary }}</td>
+          <td><code>{{ rule.sort_order }}</code></td>
+          <td><span class="badge {{ rule.status_class }}">{{ rule.status_label }}</span></td>
+	          <td><span class="table-time">{{ rule.updated_at }}</span></td>
+	          <td>
+            {% if shell.current_user.permissions.rules_write %}
+            <div class="inline-actions table-actions">
+	              <a class="button ghost small" href="{{ rule.edit_url }}">Edit</a>
+	              <form method="post" action="{{ rule.toggle_action }}">
+	                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">{{ rule.toggle_label }}</button>
+              </form>
+              <a class="button ghost small danger-text" href="{{ rule.delete_url }}">Delete</a>
+            </div>
+            {% else %}
+            <span class="muted-line">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block overlays %}
+{% if can_create_rule && show_create_modal && shell.current_user.permissions.rules_write %}
+<div class="modal-backdrop{% if show_create_modal %} is-open{% endif %}" data-modal-backdrop data-modal-explicit-close data-close-url="/rules">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Create route</p>
+        <h2>{{ create_form.title }}</h2>
+      </div>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ create_form.action }}" data-route-preview-form>
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <input type="hidden" name="test_context" value="{{ create_form.test_context }}" class="input" />
+      <input type="hidden" name="test_rule_id" value="{{ create_form.test_rule_id }}" class="input" />
+      <p class="section-summary">Choisis la source, le template et la destination. Le nom est genere automatiquement si tu ne le renseignes pas.</p>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Source</span>
+          <select name="source_id" class="select">
+            {% for option in source_options %}
+            <option value="{{ option.value }}" data-label="{{ option.label }}"{% if create_form.source_id == option.value %} selected{% endif %}>{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Destination</span>
+          <select name="destination_id" class="select">
+            <option value="">Select destination</option>
+            {% for option in destination_options %}
+            <option value="{{ option.value }}" data-label="{{ option.label }}"{% if create_form.destination_id == option.value %} selected{% endif %}>{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Template</span>
+        <select name="template_id" class="select">
+          <option value="">Select template</option>
+          {% for option in template_options %}
+          <option
+            value="{{ option.value }}"
+            data-label="{{ option.label }}"
+            data-preview-output="{{ option.preview_output }}"
+            data-format-style="{{ option.format_style }}"
+            data-embed-color="{{ option.embed_color }}"
+            data-footer-text="{{ option.footer_text }}"
+            data-username-override="{{ option.username_override }}"
+            data-avatar-url-override="{{ option.avatar_url_override }}"
+            data-show-avatar="{{ option.show_avatar }}"
+            data-show-repo-link="{{ option.show_repo_link }}"
+            data-show-branch="{{ option.show_branch }}"
+            data-show-commits="{{ option.show_commits }}"
+            data-show-status-badge="{{ option.show_status_badge }}"
+            data-show-timestamp="{{ option.show_timestamp }}"
+            {% if create_form.template_id == option.value %} selected{% endif %}
+          >{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <details class="form-disclosure"{% if create_form.show_advanced %} open{% endif %}>
+        <summary>Advanced options</summary>
+        <div class="form-disclosure-body stack-grid">
+          <p class="section-summary">Filtres de matching, nom custom, ordre d'execution et etat initial.</p>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Name (optional)</span>
+              <input type="text" name="name" value="{{ create_form.name }}" placeholder="Auto-generated from source, template and destination" class="input" />
+            </label>
+            <label class="field">
+              <span>Sort order</span>
+              <input type="text" name="sort_order" value="{{ create_form.sort_order }}" placeholder="0" class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Provider filter</span>
+              <select name="provider_filter" class="select">
+                <option value="">Any provider</option>
+                <option value="github"{% if create_form.provider_filter == "github" %} selected{% endif %}>GitHub</option>
+                <option value="gitlab"{% if create_form.provider_filter == "gitlab" %} selected{% endif %}>GitLab</option>
+                <option value="gitea"{% if create_form.provider_filter == "gitea" %} selected{% endif %}>Gitea</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Event type</span>
+              <input type="text" name="event_type_filter" value="{{ create_form.event_type_filter }}" placeholder="push, release, pull_request..." class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Branch prefix</span>
+              <input type="text" name="branch_prefix_filter" value="{{ create_form.branch_prefix_filter }}" placeholder="main or release/" class="input" />
+            </label>
+            <label class="field">
+              <span>Repository filter</span>
+              <input type="text" name="repository_filter" value="{{ create_form.repository_filter }}" placeholder="owner/repo" class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Skip keyword</span>
+              <input type="text" name="skip_keyword" value="{{ create_form.skip_keyword }}" placeholder="[skip-discord]" class="input" />
+            </label>
+            <label class="field checkbox-field">
+              <input type="checkbox" name="is_active" value="1"{% if create_form.is_active %} checked{% endif %}  />
+              <span>Rule active</span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <div class="preview-shell preview-grid-2">
+        <div class="preview-card">
+          <p class="eyebrow">Route overview</p>
+          <div class="route-preview">
+            <div class="route-flow">
+              <span class="route-node" data-route-preview-source>All sources</span>
+              <span class="route-arrow">→</span>
+              <span class="route-node" data-route-preview-template>Template</span>
+              <span class="route-arrow">→</span>
+              <span class="route-node" data-route-preview-destination>Destination</span>
+            </div>
+            <div class="route-filter-list" data-route-preview-filters></div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <p class="eyebrow">Discord embed</p>
+          <div class="discord-preview" data-discord-preview="route">
+            <div class="discord-preview-canvas">
+              <div class="discord-message">
+                <div class="discord-avatar" data-discord-preview-avatar>DM</div>
+                <div class="discord-message-body">
+                  <div class="discord-message-meta">
+                    <strong data-discord-preview-username>dmxforge</strong>
+                    <span class="discord-bot-badge">APP</span>
+                    <span class="discord-timestamp" data-discord-preview-timestamp>Today at 16:42</span>
+                  </div>
+                  <div class="discord-embed-card" data-discord-preview-card>
+                    <p class="discord-embed-title" data-discord-preview-title>Template preview</p>
+                    <p class="discord-embed-description" data-discord-preview-description>Select a template to preview the embed.</p>
+                    <div class="discord-embed-tags">
+                      <span class="discord-embed-tag" data-discord-preview-repo>repo: acme/dmxforge</span>
+                      <span class="discord-embed-tag" data-discord-preview-branch>branch: main</span>
+                      <span class="discord-embed-tag" data-discord-preview-status>status: success</span>
+                    </div>
+                    <ul class="discord-embed-commits" data-discord-preview-commits></ul>
+                    <div class="discord-embed-footer" data-discord-preview-footer-row>
+                      <span data-discord-preview-footer></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button ghost" type="submit" formaction="/rules/test" formmethod="post">Test webhook</button>
+        <button class="button primary" type="submit">{{ create_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_edit_modal && shell.current_user.permissions.rules_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-modal-explicit-close data-close-url="/rules">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Edit route</p>
+        <h2>{{ edit_form.title }}</h2>
+      </div>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ edit_form.action }}" data-route-preview-form>
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <input type="hidden" name="test_context" value="{{ edit_form.test_context }}" class="input" />
+      <input type="hidden" name="test_rule_id" value="{{ edit_form.test_rule_id }}" class="input" />
+      <p class="section-summary">Ajuste la source, le template et la destination. Les options avancees restent repliees comme a la creation.</p>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Source</span>
+          <select name="source_id" class="select">
+            {% for option in source_options %}
+            <option value="{{ option.value }}" data-label="{{ option.label }}"{% if edit_form.source_id == option.value %} selected{% endif %}>{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Destination</span>
+          <select name="destination_id" class="select">
+            {% for option in destination_options %}
+            <option value="{{ option.value }}" data-label="{{ option.label }}"{% if edit_form.destination_id == option.value %} selected{% endif %}>{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Template</span>
+        <select name="template_id" class="select">
+          {% for option in template_options %}
+          <option
+            value="{{ option.value }}"
+            data-label="{{ option.label }}"
+            data-preview-output="{{ option.preview_output }}"
+            data-format-style="{{ option.format_style }}"
+            data-embed-color="{{ option.embed_color }}"
+            data-footer-text="{{ option.footer_text }}"
+            data-username-override="{{ option.username_override }}"
+            data-avatar-url-override="{{ option.avatar_url_override }}"
+            data-show-avatar="{{ option.show_avatar }}"
+            data-show-repo-link="{{ option.show_repo_link }}"
+            data-show-branch="{{ option.show_branch }}"
+            data-show-commits="{{ option.show_commits }}"
+            data-show-status-badge="{{ option.show_status_badge }}"
+            data-show-timestamp="{{ option.show_timestamp }}"
+            {% if edit_form.template_id == option.value %} selected{% endif %}
+          >{{ option.label }}{% if option.meta != "" %} - {{ option.meta }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <details class="form-disclosure"{% if edit_form.show_advanced %} open{% endif %}>
+        <summary>Advanced options</summary>
+        <div class="form-disclosure-body stack-grid">
+          <p class="section-summary">Filtres de matching, nom custom, ordre d'execution et etat initial.</p>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Name (optional)</span>
+              <input type="text" name="name" value="{{ edit_form.name }}" placeholder="Auto-generated from source, template and destination" class="input" />
+            </label>
+            <label class="field">
+              <span>Sort order</span>
+              <input type="text" name="sort_order" value="{{ edit_form.sort_order }}" placeholder="0" class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Provider filter</span>
+              <select name="provider_filter" class="select">
+                <option value="">Any provider</option>
+                <option value="github"{% if edit_form.provider_filter == "github" %} selected{% endif %}>GitHub</option>
+                <option value="gitlab"{% if edit_form.provider_filter == "gitlab" %} selected{% endif %}>GitLab</option>
+                <option value="gitea"{% if edit_form.provider_filter == "gitea" %} selected{% endif %}>Gitea</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Event type</span>
+              <input type="text" name="event_type_filter" value="{{ edit_form.event_type_filter }}" placeholder="push, release, pull_request..." class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Branch prefix</span>
+              <input type="text" name="branch_prefix_filter" value="{{ edit_form.branch_prefix_filter }}" placeholder="main or release/" class="input" />
+            </label>
+            <label class="field">
+              <span>Repository filter</span>
+              <input type="text" name="repository_filter" value="{{ edit_form.repository_filter }}" placeholder="owner/repo" class="input" />
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Skip keyword</span>
+              <input type="text" name="skip_keyword" value="{{ edit_form.skip_keyword }}" placeholder="[skip-discord]" class="input" />
+            </label>
+            <label class="field checkbox-field">
+              <input type="checkbox" name="is_active" value="1"{% if edit_form.is_active %} checked{% endif %}  />
+              <span>Rule active</span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <div class="preview-shell preview-grid-2">
+        <div class="preview-card">
+          <p class="eyebrow">Route overview</p>
+          <div class="route-preview">
+            <div class="route-flow">
+              <span class="route-node" data-route-preview-source>All sources</span>
+              <span class="route-arrow">→</span>
+              <span class="route-node" data-route-preview-template>Template</span>
+              <span class="route-arrow">→</span>
+              <span class="route-node" data-route-preview-destination>Destination</span>
+            </div>
+            <div class="route-filter-list" data-route-preview-filters></div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <p class="eyebrow">Discord embed</p>
+          <div class="discord-preview" data-discord-preview="route">
+            <div class="discord-preview-canvas">
+              <div class="discord-message">
+                <div class="discord-avatar" data-discord-preview-avatar>DM</div>
+                <div class="discord-message-body">
+                  <div class="discord-message-meta">
+                    <strong data-discord-preview-username>dmxforge</strong>
+                    <span class="discord-bot-badge">APP</span>
+                    <span class="discord-timestamp" data-discord-preview-timestamp>Today at 16:42</span>
+                  </div>
+                  <div class="discord-embed-card" data-discord-preview-card>
+                    <p class="discord-embed-title" data-discord-preview-title>Template preview</p>
+                    <p class="discord-embed-description" data-discord-preview-description>Select a template to preview the embed.</p>
+                    <div class="discord-embed-tags">
+                      <span class="discord-embed-tag" data-discord-preview-repo>repo: acme/dmxforge</span>
+                      <span class="discord-embed-tag" data-discord-preview-branch>branch: main</span>
+                      <span class="discord-embed-tag" data-discord-preview-status>status: success</span>
+                    </div>
+                    <ul class="discord-embed-commits" data-discord-preview-commits></ul>
+                    <div class="discord-embed-footer" data-discord-preview-footer-row>
+                      <span data-discord-preview-footer></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button ghost" type="submit" formaction="/rules/test" formmethod="post">Test webhook</button>
+        <button class="button primary" type="submit">{{ edit_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_delete_modal && shell.current_user.permissions.rules_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/rules">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Destructive action</p>
+        <h2>Delete rule</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <p class="section-summary">This will remove <strong>{{ delete_target_name }}</strong> from the routing matrix.</p>
+    <div class="modal-actions">
+      <button class="button secondary" type="button" data-close-modal>Cancel</button>
+      <form method="post" action="{{ delete_target_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary danger-button" type="submit">Delete rule</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

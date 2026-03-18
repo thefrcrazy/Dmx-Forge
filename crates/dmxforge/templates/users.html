@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Access directory</p>
+      <h2>Users overview</h2>
+      <p class="section-summary">Gestion des comptes visibles, de leur rattachement parent-enfant et des permissions deleguees.</p>
+    </div>
+    <div class="inline-actions">
+    <span class="pill">{{ visible_count }} visible</span>
+    {% if can_manage_users || can_create_subusers %}
+    <a class="button primary" href="/users?modal=create">New user</a>
+    {% endif %}
+    </div>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-pill">
+      <strong>{{ total_count }}</strong>
+      <span>Total users</span>
+    </div>
+    <div class="stat-pill success">
+      <strong>{{ active_count }}</strong>
+      <span>Actifs</span>
+    </div>
+    <div class="stat-pill">
+      <strong>{{ admin_count }}</strong>
+      <span>Admins</span>
+    </div>
+    <div class="stat-pill warning">
+      <strong>{{ live_session_count }}</strong>
+      <span>Live sessions</span>
+    </div>
+  </div>
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid" method="get" action="/users">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Username, email, role or creator..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Role</span>
+      <select name="role" class="select">
+        <option value="">All</option>
+        <option value="superadmin"{% if filters.role == "superadmin" %} selected{% endif %}>Superadmin</option>
+        <option value="admin"{% if filters.role == "admin" %} selected{% endif %}>Admin</option>
+        <option value="editor"{% if filters.role == "editor" %} selected{% endif %}>Editor</option>
+        <option value="viewer"{% if filters.role == "viewer" %} selected{% endif %}>Viewer</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="active"{% if filters.status == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if filters.status == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/users">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">SQLite users</p>
+      <h2>Directory</h2>
+    </div>
+    <span class="pill">{{ users.len() }} rows</span>
+  </div>
+
+  {% if users.is_empty() %}
+  <div class="empty-state">
+    <h3>No user matches the current filters</h3>
+    <p>Adjust the search, role or status filters to bring accounts back into scope.</p>
+  </div>
+  {% else %}
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Ownership</th>
+          <th>Resources</th>
+          <th>Sessions</th>
+          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>
+            <div class="table-stack">
+              <strong>{{ user.username }}</strong>
+              <span class="muted-line">{{ user.email }}</span>
+              <span class="muted-line">Created <span class="table-time">{{ user.created_at }}</span></span>
+            </div>
+          </td>
+          <td><span class="badge {{ user.role_class }}">{{ user.role_label }}</span></td>
+          <td><span class="badge {{ user.status_class }}">{{ user.status_label }}</span></td>
+          <td class="cell-soft">{{ user.owner_summary }}</td>
+          <td class="cell-soft">{{ user.scope_summary }}</td>
+          <td class="cell-soft">{{ user.session_summary }}</td>
+          <td><span class="table-time">{{ user.updated_at }}</span></td>
+          <td>
+            {% if user.can_manage %}
+            <div class="inline-actions table-actions">
+              <a class="button ghost small" href="{{ user.edit_url }}">Edit</a>
+              <form method="post" action="{{ user.toggle_action }}">
+                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">{{ user.toggle_label }}</button>
+              </form>
+              <a class="button ghost small danger-text" href="{{ user.delete_url }}">Delete</a>
+            </div>
+            {% else %}
+            <span class="muted-line">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card card--table">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">SQLite sessions</p>
+      <h2>Active sessions</h2>
+    </div>
+    <span class="pill">{{ sessions.len() }} visible</span>
+  </div>
+
+  {% if sessions.is_empty() %}
+  <div class="empty-state">
+    <h3>No live session in scope</h3>
+    <p>Expired sessions are purged automatically during authentication and session refresh.</p>
+  </div>
+  {% else %}
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Session</th>
+          <th>Client</th>
+          <th>Last seen</th>
+          <th>Expires</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sessions %}
+        <tr>
+          <td>
+            <div class="table-stack">
+              <strong>{{ row.username }}</strong>
+              <span class="muted-line">{{ row.email }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="table-stack">
+              <span class="badge {{ row.role_class }}">{{ row.role_label }}</span>
+              {% if row.is_current %}
+              <span class="pill">Current session</span>
+              {% endif %}
+              <span class="muted-line">Created <span class="table-time">{{ row.created_at }}</span></span>
+            </div>
+          </td>
+          <td>
+            <div class="table-stack">
+              <strong>{{ row.ip_address }}</strong>
+              <span class="muted-line">{{ row.user_agent }}</span>
+            </div>
+          </td>
+          <td><span class="table-time">{{ row.last_seen_at }}</span></td>
+          <td><span class="table-time">{{ row.expires_at }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block overlays %}
+{% if show_create_modal %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/users">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Delegated access</p>
+        <h2>{{ create_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <form class="stack-grid" method="post" action="{{ create_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" name="username" value="{{ create_form.username }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ create_form.email }}" class="input" />
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Role</span>
+          <select name="role" class="select">
+            {% for option in role_options %}
+            <option value="{{ option.value }}"{% if create_form.role == option.value %} selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Parent user</span>
+          <select name="parent_user_id" class="select">
+            {% for option in parent_options %}
+            <option value="{{ option.value }}"{% if create_form.parent_user_id == option.value %} selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" class="input" />
+        </label>
+        <label class="field">
+          <span>Password confirmation</span>
+          <input type="password" name="password_confirmation" class="input" />
+        </label>
+      </div>
+      <label class="field checkbox-field">
+        <input type="checkbox" name="is_active" value="1"{% if create_form.is_active %} checked{% endif %} />
+        <span>Account active immediately</span>
+      </label>
+      <div class="form-grid">
+        <label class="field checkbox-field"><input type="checkbox" name="sources_read" value="1"{% if create_form.sources_read %} checked{% endif %} /><span>Read sources</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="sources_write" value="1"{% if create_form.sources_write %} checked{% endif %} /><span>Write sources</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="destinations_read" value="1"{% if create_form.destinations_read %} checked{% endif %} /><span>Read destinations</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="destinations_write" value="1"{% if create_form.destinations_write %} checked{% endif %} /><span>Write destinations</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="templates_read" value="1"{% if create_form.templates_read %} checked{% endif %} /><span>Read templates</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="templates_write" value="1"{% if create_form.templates_write %} checked{% endif %} /><span>Write templates</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="rules_read" value="1"{% if create_form.rules_read %} checked{% endif %} /><span>Read rules</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="rules_write" value="1"{% if create_form.rules_write %} checked{% endif %} /><span>Write rules</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="deliveries_read" value="1"{% if create_form.deliveries_read %} checked{% endif %} /><span>Read deliveries</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="deliveries_replay" value="1"{% if create_form.deliveries_replay %} checked{% endif %} /><span>Replay deliveries</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="users_read" value="1"{% if create_form.users_read %} checked{% endif %} /><span>Read users</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="users_write" value="1"{% if create_form.users_write %} checked{% endif %} /><span>Manage users</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="subusers_create" value="1"{% if create_form.subusers_create %} checked{% endif %} /><span>Create sub-users</span></label>
+      </div>
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ create_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_edit_modal %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/users">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Delegated access</p>
+        <h2>{{ edit_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <form class="stack-grid" method="post" action="{{ edit_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" name="username" value="{{ edit_form.username }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ edit_form.email }}" class="input" />
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Role</span>
+          <select name="role" class="select">
+            {% for option in role_options %}
+            <option value="{{ option.value }}"{% if edit_form.role == option.value %} selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Parent user</span>
+          <select name="parent_user_id" class="select">
+            {% for option in parent_options %}
+            <option value="{{ option.value }}"{% if edit_form.parent_user_id == option.value %} selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>New password</span>
+          <input type="password" name="password" class="input" />
+        </label>
+        <label class="field">
+          <span>Password confirmation</span>
+          <input type="password" name="password_confirmation" class="input" />
+        </label>
+      </div>
+      <label class="field checkbox-field">
+        <input type="checkbox" name="is_active" value="1"{% if edit_form.is_active %} checked{% endif %} />
+        <span>Account active</span>
+      </label>
+      <div class="form-grid">
+        <label class="field checkbox-field"><input type="checkbox" name="sources_read" value="1"{% if edit_form.sources_read %} checked{% endif %} /><span>Read sources</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="sources_write" value="1"{% if edit_form.sources_write %} checked{% endif %} /><span>Write sources</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="destinations_read" value="1"{% if edit_form.destinations_read %} checked{% endif %} /><span>Read destinations</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="destinations_write" value="1"{% if edit_form.destinations_write %} checked{% endif %} /><span>Write destinations</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="templates_read" value="1"{% if edit_form.templates_read %} checked{% endif %} /><span>Read templates</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="templates_write" value="1"{% if edit_form.templates_write %} checked{% endif %} /><span>Write templates</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="rules_read" value="1"{% if edit_form.rules_read %} checked{% endif %} /><span>Read rules</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="rules_write" value="1"{% if edit_form.rules_write %} checked{% endif %} /><span>Write rules</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="deliveries_read" value="1"{% if edit_form.deliveries_read %} checked{% endif %} /><span>Read deliveries</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="deliveries_replay" value="1"{% if edit_form.deliveries_replay %} checked{% endif %} /><span>Replay deliveries</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="users_read" value="1"{% if edit_form.users_read %} checked{% endif %} /><span>Read users</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="users_write" value="1"{% if edit_form.users_write %} checked{% endif %} /><span>Manage users</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="subusers_create" value="1"{% if edit_form.subusers_create %} checked{% endif %} /><span>Create sub-users</span></label>
+      </div>
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ edit_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_delete_modal %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/users">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Destructive action</p>
+        <h2>Delete user</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <p class="section-summary">This will remove <strong>{{ delete_target_name }}</strong>, its sessions and its owned resources.</p>
+    <div class="modal-actions">
+      <button class="button secondary" type="button" data-close-modal>Cancel</button>
+      <form method="post" action="{{ delete_target_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary danger-button" type="submit">Delete user</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel section-panel">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Roadmap active</p>
+      <h2>{{ headline }}</h2>
+    </div>
+    <span class="pill">Scaffold</span>
+  </div>
+
+  <p class="section-summary">{{ summary }}</p>
+
+  <div class="milestone-grid">
+    {% for item in milestones %}
+    <article class="milestone-card">
+      <span class="milestone-index">0{{ loop.index }}</span>
+      <p>{{ item }}</p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

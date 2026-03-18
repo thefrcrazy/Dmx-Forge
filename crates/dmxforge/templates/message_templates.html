@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Minijinja library</p>
+      <h2>Message templates</h2>
+      <p class="section-summary">Les templates seedes servent de base. Chaque edition expose le body brut, les toggles d'embed et une preview calculee cote serveur.</p>
+    </div>
+    {% if shell.current_user.permissions.templates_write %}
+    <a class="button primary" href="/templates?modal=create">New template</a>
+    {% endif %}
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-pill">
+      <strong>{{ total_count }}</strong>
+      <span>Total</span>
+    </div>
+    <div class="stat-pill success">
+      <strong>{{ active_count }}</strong>
+      <span>Actifs</span>
+    </div>
+    <div class="stat-pill warning">
+      <strong>{{ inactive_count }}</strong>
+      <span>Inactifs</span>
+    </div>
+  </div>
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid" method="get" action="/templates">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Name, style or template body..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Style</span>
+      <select name="format_style" class="select">
+        <option value="">All</option>
+        <option value="compact"{% if filters.format_style == "compact" %} selected{% endif %}>compact</option>
+        <option value="detailed"{% if filters.format_style == "detailed" %} selected{% endif %}>detailed</option>
+        <option value="release"{% if filters.format_style == "release" %} selected{% endif %}>release</option>
+        <option value="alert"{% if filters.format_style == "alert" %} selected{% endif %}>alert</option>
+        <option value="custom"{% if filters.format_style == "custom" %} selected{% endif %}>custom</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="active"{% if filters.status == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if filters.status == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/templates">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Preview-ready catalog</p>
+      <h2>Registered templates</h2>
+    </div>
+    <span class="pill">{{ templates.len() }} visible</span>
+  </div>
+
+  {% if templates.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75v10.5M12 6.75v10.5m-5.25-10.5v10.5M4.5 3.75h15a1.5 1.5 0 011.5 1.5v13.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18.75V5.25a1.5 1.5 0 011.5-1.5z" />
+    </svg>
+    <h3>No template matches the current filter</h3>
+    <p>Create a custom template or rely on the seeded presets that are inserted on first boot.</p>
+    {% if shell.current_user.permissions.templates_write %}
+    <a class="button primary" href="/templates?modal=create">Create template</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="table-shell">
+	    <table>
+	      <thead>
+	        <tr>
+	          <th>Name</th>
+	          <th>Body excerpt</th>
+	          <th>Status</th>
+	          <th>Updated</th>
+	          <th>Actions</th>
+        </tr>
+      </thead>
+	      <tbody>
+	        {% for template in templates %}
+	        <tr>
+	          <td>
+	            <div class="table-stack">
+	              <strong>{{ template.name }}</strong>
+	              <div class="table-meta-row">
+	                <span class="pill">{{ template.format_style }}</span>
+	                <span class="muted-line">{{ template.feature_summary }}</span>
+	              </div>
+	            </div>
+	          </td>
+	          <td>
+	            <div class="template-body-cell">
+	              <div class="template-snippet">
+	                <span class="table-label">Template body</span>
+	                <code>{{ template.excerpt }}</code>
+	              </div>
+	              <div class="template-preview-snippet">
+	                <span class="table-label">Rendered preview</span>
+	                <p>{{ template.preview_output }}</p>
+	              </div>
+	            </div>
+	          </td>
+	          <td><span class="badge {{ template.status_class }}">{{ template.status_label }}</span></td>
+	          <td><span class="table-time">{{ template.updated_at }}</span></td>
+	          <td>
+            {% if shell.current_user.permissions.templates_write %}
+            <div class="inline-actions table-actions">
+	              <a class="button ghost small" href="{{ template.edit_url }}">Edit</a>
+	              <form method="post" action="{{ template.toggle_action }}">
+	                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">{{ template.toggle_label }}</button>
+              </form>
+              <a class="button ghost small danger-text" href="{{ template.delete_url }}">Delete</a>
+            </div>
+            {% else %}
+            <span class="muted-line">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block overlays %}
+{% if show_create_modal && shell.current_user.permissions.templates_write %}
+<div class="modal-backdrop{% if show_create_modal %} is-open{% endif %}" data-modal-backdrop data-close-url="/templates">
+  <div class="modal modal-xl" data-preview-scope>
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">New renderer</p>
+        <h2>{{ create_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ create_form.action }}" data-preview-form>
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" value="{{ create_form.name }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Format style</span>
+          <select name="format_style" class="select">
+            <option value="custom"{% if create_form.format_style == "custom" %} selected{% endif %}>custom</option>
+            <option value="compact"{% if create_form.format_style == "compact" %} selected{% endif %}>compact</option>
+            <option value="detailed"{% if create_form.format_style == "detailed" %} selected{% endif %}>detailed</option>
+            <option value="release"{% if create_form.format_style == "release" %} selected{% endif %}>release</option>
+            <option value="alert"{% if create_form.format_style == "alert" %} selected{% endif %}>alert</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Body template</span>
+        <textarea name="body_template" rows="9" class="textarea">{{ create_form.body_template }}</textarea>
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Embed color</span>
+          <input type="text" name="embed_color" value="{{ create_form.embed_color }}" placeholder="#FF7000" class="input" />
+        </label>
+        <label class="field">
+          <span>Footer text</span>
+          <input type="text" name="footer_text" value="{{ create_form.footer_text }}" placeholder="Optional footer" class="input" />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Username override</span>
+          <input type="text" name="username_override" value="{{ create_form.username_override }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Avatar override URL</span>
+          <input type="text" name="avatar_url_override" value="{{ create_form.avatar_url_override }}" class="input" />
+        </label>
+      </div>
+
+      <div class="toggle-grid">
+        <label class="field checkbox-field"><input type="checkbox" name="show_avatar" value="1"{% if create_form.show_avatar %} checked{% endif %}  /><span>Avatar</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_repo_link" value="1"{% if create_form.show_repo_link %} checked{% endif %}  /><span>Repo link</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_branch" value="1"{% if create_form.show_branch %} checked{% endif %}  /><span>Branch</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_commits" value="1"{% if create_form.show_commits %} checked{% endif %}  /><span>Commits</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_status_badge" value="1"{% if create_form.show_status_badge %} checked{% endif %}  /><span>Status badge</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_timestamp" value="1"{% if create_form.show_timestamp %} checked{% endif %}  /><span>Timestamp</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="is_active" value="1"{% if create_form.is_active %} checked{% endif %}  /><span>Template active</span></label>
+      </div>
+
+      <div class="preview-shell preview-grid-2">
+        <div class="preview-card">
+          <p class="eyebrow">Discord embed</p>
+          <div class="discord-preview" data-discord-preview="template">
+            <div class="discord-preview-canvas">
+              <div class="discord-message">
+                <div class="discord-avatar" data-discord-preview-avatar>DM</div>
+                <div class="discord-message-body">
+                  <div class="discord-message-meta">
+                    <strong data-discord-preview-username>dmxforge</strong>
+                    <span class="discord-bot-badge">APP</span>
+                    <span class="discord-timestamp" data-discord-preview-timestamp>Today at 16:42</span>
+                  </div>
+                  <div class="discord-embed-card" data-discord-preview-card>
+                    <p class="discord-embed-title" data-discord-preview-title>{{ create_form.name }}</p>
+                    <p class="discord-embed-description" data-discord-preview-description>{{ create_form.preview_output }}</p>
+                    <div class="discord-embed-tags">
+                      <span class="discord-embed-tag" data-discord-preview-repo>repo: acme/dmxforge</span>
+                      <span class="discord-embed-tag" data-discord-preview-branch>branch: main</span>
+                      <span class="discord-embed-tag" data-discord-preview-status>status: success</span>
+                    </div>
+                    <ul class="discord-embed-commits" data-discord-preview-commits></ul>
+                    <div class="discord-embed-footer" data-discord-preview-footer-row>
+                      <span data-discord-preview-footer>{{ create_form.footer_text }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <p class="eyebrow">Rendered preview</p>
+          <pre data-preview-output>{{ create_form.preview_output }}</pre>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ create_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_edit_modal && shell.current_user.permissions.templates_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/templates">
+  <div class="modal modal-xl" data-preview-scope>
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Existing renderer</p>
+        <h2>{{ edit_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ edit_form.action }}" data-preview-form>
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <div class="form-grid">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" value="{{ edit_form.name }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Format style</span>
+          <select name="format_style" class="select">
+            <option value="custom"{% if edit_form.format_style == "custom" %} selected{% endif %}>custom</option>
+            <option value="compact"{% if edit_form.format_style == "compact" %} selected{% endif %}>compact</option>
+            <option value="detailed"{% if edit_form.format_style == "detailed" %} selected{% endif %}>detailed</option>
+            <option value="release"{% if edit_form.format_style == "release" %} selected{% endif %}>release</option>
+            <option value="alert"{% if edit_form.format_style == "alert" %} selected{% endif %}>alert</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Body template</span>
+        <textarea name="body_template" rows="9" class="textarea">{{ edit_form.body_template }}</textarea>
+      </label>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Embed color</span>
+          <input type="text" name="embed_color" value="{{ edit_form.embed_color }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Footer text</span>
+          <input type="text" name="footer_text" value="{{ edit_form.footer_text }}" class="input" />
+        </label>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Username override</span>
+          <input type="text" name="username_override" value="{{ edit_form.username_override }}" class="input" />
+        </label>
+        <label class="field">
+          <span>Avatar override URL</span>
+          <input type="text" name="avatar_url_override" value="{{ edit_form.avatar_url_override }}" class="input" />
+        </label>
+      </div>
+
+      <div class="toggle-grid">
+        <label class="field checkbox-field"><input type="checkbox" name="show_avatar" value="1"{% if edit_form.show_avatar %} checked{% endif %}  /><span>Avatar</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_repo_link" value="1"{% if edit_form.show_repo_link %} checked{% endif %}  /><span>Repo link</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_branch" value="1"{% if edit_form.show_branch %} checked{% endif %}  /><span>Branch</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_commits" value="1"{% if edit_form.show_commits %} checked{% endif %}  /><span>Commits</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_status_badge" value="1"{% if edit_form.show_status_badge %} checked{% endif %}  /><span>Status badge</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="show_timestamp" value="1"{% if edit_form.show_timestamp %} checked{% endif %}  /><span>Timestamp</span></label>
+        <label class="field checkbox-field"><input type="checkbox" name="is_active" value="1"{% if edit_form.is_active %} checked{% endif %}  /><span>Template active</span></label>
+      </div>
+
+      <div class="preview-shell preview-grid-2">
+        <div class="preview-card">
+          <p class="eyebrow">Discord embed</p>
+          <div class="discord-preview" data-discord-preview="template">
+            <div class="discord-preview-canvas">
+              <div class="discord-message">
+                <div class="discord-avatar" data-discord-preview-avatar>DM</div>
+                <div class="discord-message-body">
+                  <div class="discord-message-meta">
+                    <strong data-discord-preview-username>dmxforge</strong>
+                    <span class="discord-bot-badge">APP</span>
+                    <span class="discord-timestamp" data-discord-preview-timestamp>Today at 16:42</span>
+                  </div>
+                  <div class="discord-embed-card" data-discord-preview-card>
+                    <p class="discord-embed-title" data-discord-preview-title>{{ edit_form.name }}</p>
+                    <p class="discord-embed-description" data-discord-preview-description>{{ edit_form.preview_output }}</p>
+                    <div class="discord-embed-tags">
+                      <span class="discord-embed-tag" data-discord-preview-repo>repo: acme/dmxforge</span>
+                      <span class="discord-embed-tag" data-discord-preview-branch>branch: main</span>
+                      <span class="discord-embed-tag" data-discord-preview-status>status: success</span>
+                    </div>
+                    <ul class="discord-embed-commits" data-discord-preview-commits></ul>
+                    <div class="discord-embed-footer" data-discord-preview-footer-row>
+                      <span data-discord-preview-footer>{{ edit_form.footer_text }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <p class="eyebrow">Rendered preview</p>
+          <pre data-preview-output>{{ edit_form.preview_output }}</pre>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ edit_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_delete_modal && shell.current_user.permissions.templates_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/templates">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Destructive action</p>
+        <h2>Delete template</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <p class="section-summary">This will remove <strong>{{ delete_target_name }}</strong> and may invalidate existing routing rules.</p>
+    <div class="modal-actions">
+      <button class="button secondary" type="button" data-close-modal>Cancel</button>
+      <form method="post" action="{{ delete_target_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary danger-button" type="submit">Delete template</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

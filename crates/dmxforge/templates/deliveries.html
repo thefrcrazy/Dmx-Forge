@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Delivery history</p>
+      <h2>Livraisons</h2>
+      <p class="section-summary">Liste des 50 dernieres livraisons par page, avec filtres par statut, source, provider, type d'evenement, dates et recherche repo / hash.</p>
+    </div>
+    <span class="pill">{{ total_count }} total</span>
+  </div>
+
+  {% if total_count > 0 %}
+  <div class="note-card">
+    <strong>Current slice</strong>
+    <p>Showing {{ visible_from }} to {{ visible_to }} on page {{ pagination.current_page }} / {{ pagination.total_pages }}.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid delivery-filter-grid" method="get" action="/deliveries">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Repository, commit hash or delivery id..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="pending"{% if filters.status == "pending" %} selected{% endif %}>pending</option>
+        <option value="processed"{% if filters.status == "processed" %} selected{% endif %}>processed</option>
+        <option value="failed"{% if filters.status == "failed" %} selected{% endif %}>failed</option>
+        <option value="skipped"{% if filters.status == "skipped" %} selected{% endif %}>skipped</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Source</span>
+      <select name="source_id" class="select">
+        <option value="">All</option>
+        {% for option in source_options %}
+        <option value="{{ option.value }}"{% if filters.source_id == option.value %} selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Provider</span>
+      <select name="provider" class="select">
+        <option value="">All</option>
+        <option value="github"{% if filters.provider == "github" %} selected{% endif %}>GitHub</option>
+        <option value="gitlab"{% if filters.provider == "gitlab" %} selected{% endif %}>GitLab</option>
+        <option value="gitea"{% if filters.provider == "gitea" %} selected{% endif %}>Gitea</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Event type</span>
+      <input type="text" name="event_type" value="{{ filters.event_type }}" placeholder="push, release, pipeline..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Date from</span>
+      <input type="date" name="date_from" value="{{ filters.date_from }}" class="input" />
+    </label>
+
+    <label class="field">
+      <span>Date to</span>
+      <input type="date" name="date_to" value="{{ filters.date_to }}" class="input" />
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/deliveries">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Pipeline trace</p>
+      <h2>Recent deliveries</h2>
+    </div>
+  </div>
+
+  {% if rows.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0 4.142-3.358 7.5-7.5 7.5S4.5 16.142 4.5 12 7.858 4.5 12 4.5s7.5 3.358 7.5 7.5z" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v4.5l2.25 2.25" />
+    </svg>
+    <h3>No delivery matches the current filter</h3>
+    <p>Send a webhook or relax the filters to inspect recent activity.</p>
+  </div>
+  {% else %}
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Source</th>
+          <th>Provider</th>
+          <th>Event</th>
+          <th>Repository</th>
+          <th>Status</th>
+          <th>Discord</th>
+          <th>Received</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><code>{{ row.short_id }}</code></td>
+          <td>{{ row.source_label }}</td>
+          <td>{{ row.provider }}</td>
+          <td>
+            <div class="table-stack">
+              <strong>{{ row.event_type }}</strong>
+              <span class="muted-line">{{ row.branch }}</span>
+            </div>
+          </td>
+          <td>{{ row.repository }}</td>
+          <td>
+            <div class="table-stack">
+              <span class="badge {{ row.status_class }}">{{ row.status_label }}</span>
+              {% if row.has_failure_reason %}
+              <span class="muted-line">{{ row.failure_excerpt }}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>{{ row.dispatch_summary }}</td>
+          <td>{{ row.received_at }}</td>
+          <td><a class="button ghost small" href="{{ row.detail_url }}">Inspect</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+{% if pagination.total_pages > 1 %}
+<section class="card">
+  <div class="pagination-shell">
+    {% if pagination.has_prev %}
+    <a class="button secondary" href="{{ pagination.prev_url }}">Previous</a>
+    {% else %}
+    <span class="button secondary disabled">Previous</span>
+    {% endif %}
+
+    <span class="pill">Page {{ pagination.current_page }} / {{ pagination.total_pages }}</span>
+
+    {% if pagination.has_next %}
+    <a class="button secondary" href="{{ pagination.next_url }}">Next</a>
+    {% else %}
+    <span class="button secondary disabled">Next</span>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

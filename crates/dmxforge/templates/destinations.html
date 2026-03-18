@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Discord delivery</p>
+      <h2>Destinations</h2>
+      <p class="section-summary">Stockez les webhooks Discord et activez-les a chaud depuis l'interface.</p>
+    </div>
+    {% if shell.current_user.permissions.destinations_write %}
+    <a class="button primary" href="/destinations?modal=create">New destination</a>
+    {% endif %}
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-pill">
+      <strong>{{ total_count }}</strong>
+      <span>Total</span>
+    </div>
+    <div class="stat-pill success">
+      <strong>{{ active_count }}</strong>
+      <span>Actives</span>
+    </div>
+    <div class="stat-pill warning">
+      <strong>{{ inactive_count }}</strong>
+      <span>Inactives</span>
+    </div>
+  </div>
+</section>
+
+<section class="card card--table">
+  <form class="filter-grid" method="get" action="/destinations">
+    <label class="field">
+      <span>Search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Name or webhook host..." class="input" />
+    </label>
+
+    <label class="field">
+      <span>Status</span>
+      <select name="status" class="select">
+        <option value="">All</option>
+        <option value="active"{% if filters.status == "active" %} selected{% endif %}>Active</option>
+        <option value="inactive"{% if filters.status == "inactive" %} selected{% endif %}>Inactive</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button class="button secondary" type="submit">Apply</button>
+      <a class="button ghost" href="/destinations">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Output targets</p>
+      <h2>Registered destinations</h2>
+    </div>
+    <span class="pill">{{ destinations.len() }} visible</span>
+  </div>
+
+  {% if destinations.is_empty() %}
+  <div class="empty-state">
+    <svg class="empty-state-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3h5.25m-2.477 8.26A2.25 2.25 0 0112 21a2.25 2.25 0 011.727-.79l5.728-6.543a2.25 2.25 0 00.545-1.48V5.25A2.25 2.25 0 0017.75 3h-11.5A2.25 2.25 0 004 5.25v6.937c0 .54.194 1.062.545 1.48l5.728 6.543z" />
+    </svg>
+    <h3>No Discord destination configured</h3>
+    <p>Add an official Discord webhook URL to unlock rule-based delivery.</p>
+    {% if shell.current_user.permissions.destinations_write %}
+    <a class="button primary" href="/destinations?modal=create">Create destination</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="table-shell">
+	    <table>
+	      <thead>
+	        <tr>
+	          <th>Name</th>
+	          <th>Webhook URL</th>
+	          <th>Status</th>
+	          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+	        {% for destination in destinations %}
+	        <tr>
+	          <td>
+	            <div class="table-stack">
+	              <strong>{{ destination.name }}</strong>
+	              <span class="muted-line">{{ destination.host }}</span>
+	            </div>
+	          </td>
+	          <td><code>{{ destination.masked_url }}</code></td>
+	          <td><span class="badge {{ destination.status_class }}">{{ destination.status_label }}</span></td>
+	          <td><span class="table-time">{{ destination.updated_at }}</span></td>
+	          <td>
+            {% if shell.current_user.permissions.destinations_write %}
+            <div class="inline-actions table-actions">
+	              <a class="button ghost small" href="{{ destination.edit_url }}">Edit</a>
+	              <form method="post" action="{{ destination.toggle_action }}">
+	                <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+                <button class="button ghost small" type="submit">{{ destination.toggle_label }}</button>
+              </form>
+              <a class="button ghost small danger-text" href="{{ destination.delete_url }}">Delete</a>
+            </div>
+            {% else %}
+            <span class="muted-line">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block overlays %}
+{% if shell.current_user.permissions.destinations_write %}
+<div class="modal-backdrop{% if show_create_modal %} is-open{% endif %}" data-modal-backdrop data-close-url="/destinations">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Create target</p>
+        <h2>{{ create_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ create_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <label class="field">
+        <span>Name</span>
+        <input type="text" name="name" value="{{ create_form.name }}" placeholder="Engineering Discord" class="input" />
+      </label>
+
+      <label class="field">
+        <span>Discord webhook URL</span>
+        <input type="text" name="webhook_url" value="{{ create_form.webhook_url }}" placeholder="https://discord.com/api/webhooks/..." class="input" />
+      </label>
+
+      <label class="field checkbox-field">
+        <input type="checkbox" name="is_active" value="1"{% if create_form.is_active %} checked{% endif %}  />
+        <span>Destination active immediately</span>
+      </label>
+
+      <div class="note-card">
+        <strong>Validation</strong>
+        <p>Only official Discord hosts are accepted: <code>discord.com</code>, <code>ptb.discord.com</code> and <code>canary.discord.com</code>.</p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ create_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_edit_modal && shell.current_user.permissions.destinations_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/destinations">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Edit target</p>
+        <h2>{{ edit_form.title }}</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+
+    <form class="stack-grid" method="post" action="{{ edit_form.action }}">
+      <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+      <label class="field">
+        <span>Name</span>
+        <input type="text" name="name" value="{{ edit_form.name }}" class="input" />
+      </label>
+
+      <label class="field">
+        <span>Discord webhook URL</span>
+        <input type="text" name="webhook_url" value="{{ edit_form.webhook_url }}" class="input" />
+      </label>
+
+      <label class="field checkbox-field">
+        <input type="checkbox" name="is_active" value="1"{% if edit_form.is_active %} checked{% endif %}  />
+        <span>Destination active</span>
+      </label>
+
+      <div class="modal-actions">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" type="submit">{{ edit_form.submit_label }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_delete_modal && shell.current_user.permissions.destinations_write %}
+<div class="modal-backdrop is-open" data-modal-backdrop data-close-url="/destinations">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Destructive action</p>
+        <h2>Delete destination</h2>
+      </div>
+      <button class="button ghost" type="button" data-close-modal>Close</button>
+    </div>
+    <p class="section-summary">This will remove <strong>{{ delete_target_name }}</strong> and break any routing rule still targeting it.</p>
+    <div class="modal-actions">
+      <button class="button secondary" type="button" data-close-modal>Cancel</button>
+      <form method="post" action="{{ delete_target_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary danger-button" type="submit">Delete destination</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

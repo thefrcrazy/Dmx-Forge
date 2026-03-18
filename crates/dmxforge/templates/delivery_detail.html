@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel resource-hero">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Technical inspection</p>
+      <h2>Delivery {{ detail.id }}</h2>
+      <p class="section-summary">Payload brut, evenement normalise, tentatives Discord et rejeu du pipeline complet.</p>
+    </div>
+    <div class="inline-actions">
+      <a class="button secondary" href="{{ back_url }}">Back to deliveries</a>
+      {% if shell.current_user.permissions.deliveries_replay %}
+      <form method="post" action="{{ replay_action }}">
+        <input type="hidden" name="csrf_token" value="{{ shell.current_user.csrf_token }}" class="input" />
+        <button class="button primary" type="submit">Replay delivery</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <article class="summary-item">
+      <span>Status</span>
+      <div class="table-stack">
+        <span class="badge {{ detail.status_class }}">{{ detail.status_label }}</span>
+        <strong>{{ detail.dispatch_summary }}</strong>
+      </div>
+    </article>
+    <article class="summary-item">
+      <span>Source</span>
+      <strong>{{ detail.source_label }}</strong>
+    </article>
+    <article class="summary-item">
+      <span>Provider / event</span>
+      <strong>{{ detail.provider }} / {{ detail.event_type }}</strong>
+    </article>
+    <article class="summary-item">
+      <span>Repository / branch</span>
+      <strong>{{ detail.repository }} / {{ detail.branch }}</strong>
+    </article>
+    <article class="summary-item">
+      <span>Received at</span>
+      <strong>{{ detail.received_at }}</strong>
+    </article>
+    <article class="summary-item">
+      <span>Processed at</span>
+      <strong>{{ detail.processed_at }}</strong>
+    </article>
+  </div>
+
+  {% if detail.has_failure_reason %}
+  <div class="note-card warning-card">
+    <strong>Failure reason</strong>
+    <p>{{ detail.failure_reason }}</p>
+  </div>
+  {% endif %}
+
+  {% if detail.partial_failure %}
+  <div class="note-card warning-card">
+    <strong>Partial delivery</strong>
+    <p>The delivery reached Discord, but at least one target failed.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel-grid panel-grid-2">
+  <article class="card">
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Incoming request</p>
+        <h2>Headers</h2>
+      </div>
+    </div>
+    <pre>{{ detail.raw_headers_pretty }}</pre>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Incoming request</p>
+        <h2>Raw payload</h2>
+      </div>
+    </div>
+    <pre>{{ detail.raw_payload_pretty }}</pre>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Pipeline output</p>
+      <h2>Unified event</h2>
+    </div>
+  </div>
+  {% if detail.has_normalized_event %}
+  <pre>{{ detail.normalized_event_pretty }}</pre>
+  {% else %}
+  <div class="empty-state compact-empty">
+    <h3>No normalized event stored</h3>
+    <p>The delivery stopped before normalization, or the event type was unsupported.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">Discord fan-out</p>
+      <h2>Message attempts</h2>
+    </div>
+    <span class="pill">{{ messages.len() }} attempts</span>
+  </div>
+
+  {% if messages.is_empty() %}
+  <div class="empty-state compact-empty">
+    <h3>No Discord message attempt recorded</h3>
+    <p>This usually means the delivery was skipped before the fan-out stage.</p>
+  </div>
+  {% else %}
+  <div class="stack-grid">
+    {% for message in messages %}
+    <article class="message-attempt">
+      <div class="message-attempt-header">
+        <div>
+          <strong>{{ message.destination_label }}</strong>
+          <p class="muted-line">{{ message.attempted_at }}</p>
+        </div>
+        <div class="table-stack align-right">
+          <span class="badge {{ message.status_class }}">{{ message.status_label }}</span>
+          <span class="muted-line">HTTP {{ message.response_status }}</span>
+        </div>
+      </div>
+
+      <div class="panel-grid panel-grid-2">
+        <div>
+          <p class="eyebrow">Request payload</p>
+          <pre>{{ message.request_payload_pretty }}</pre>
+        </div>
+        <div>
+          <p class="eyebrow">Response body</p>
+          <pre>{{ message.response_body_pretty }}</pre>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
