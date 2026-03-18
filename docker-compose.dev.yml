@@ -1,5 +1,6 @@
 services:
   dmxforge:
+    container_name: dmxforge
     build:
       context: .
     command: cargo run -p dmxforge

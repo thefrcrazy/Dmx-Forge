@@ -1,5 +1,6 @@
 services:
   dmxforge:
+    container_name: dmxforge
     image: dmxforge:local
     build:
       context: .
@@ -9,8 +10,3 @@ services:
       SECURE_COOKIES: ${SECURE_COOKIES:-false}
     ports:
       - "3000:3000"
-    volumes:
-      - dmxforge-data:/app/data
-
-volumes:
-  dmxforge-data:

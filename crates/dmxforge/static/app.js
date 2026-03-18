@@ -192,12 +192,84 @@
     return Array.from(merged.values());
   }
 
+  function mountFloatingMenu(instance, kind) {
+    if (instance.menu.parentNode !== document.body) {
+      document.body.appendChild(instance.menu);
+    }
+
+    instance.menu.classList.add("floating-select-menu", `floating-${kind}-menu`);
+    instance.menu.style.display = "block";
+    positionFloatingMenu(instance);
+  }
+
+  function unmountFloatingMenu(instance, kind) {
+    instance.menu.classList.remove("floating-select-menu", `floating-${kind}-menu`);
+    instance.menu.style.display = "";
+    instance.menu.style.position = "";
+    instance.menu.style.left = "";
+    instance.menu.style.top = "";
+    instance.menu.style.width = "";
+    instance.menu.style.maxHeight = "";
+
+    if (instance.menu.parentNode !== instance.menuHost) {
+      instance.menuHost.appendChild(instance.menu);
+    }
+  }
+
+  function positionFloatingMenu(instance) {
+    if (!instance.wrapper.classList.contains("is-open")) {
+      return;
+    }
+
+    const gap = 4;
+    const margin = 12;
+    const maxMenuHeight = 240;
+    const rect = instance.trigger.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spaceBelow = viewportHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    const preferUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(
+      120,
+      Math.min(maxMenuHeight, preferUp ? spaceAbove - gap : spaceBelow - gap),
+    );
+
+    instance.menu.style.position = "fixed";
+    const left = Math.max(margin, Math.min(rect.left, viewportWidth - rect.width - margin));
+    instance.menu.style.left = `${left}px`;
+    instance.menu.style.width = `${rect.width}px`;
+    instance.menu.style.maxHeight = `${availableHeight}px`;
+
+    const measuredHeight = Math.min(instance.menu.scrollHeight, availableHeight);
+    const top = preferUp
+      ? Math.max(margin, rect.top - measuredHeight - gap)
+      : Math.min(viewportHeight - margin - measuredHeight, rect.bottom + gap);
+
+    instance.menu.style.top = `${top}px`;
+  }
+
+  function syncOpenMenuPositions() {
+    customSelects.forEach((instance) => {
+      if (instance.wrapper.classList.contains("is-open")) {
+        positionFloatingMenu(instance);
+      }
+    });
+
+    checkboxSelects.forEach((instance) => {
+      if (instance.wrapper.classList.contains("is-open")) {
+        positionFloatingMenu(instance);
+      }
+    });
+  }
+
   function createCustomSelect(select) {
     if (
       !(select instanceof HTMLSelectElement)
+      || !select.classList.contains("select")
       || select.multiple
       || select.closest(".custom-select")
-      || select.dataset.enhancedSelect !== "true"
+      || select.dataset.enhancedSelect === "false"
     ) {
       return null;
     }
@@ -238,10 +310,12 @@
       select,
       trigger,
       menu,
+      menuHost: wrapper,
       options: [],
       close(returnFocus = false) {
         wrapper.classList.remove("is-open");
         trigger.setAttribute("aria-expanded", "false");
+        unmountFloatingMenu(instance, "custom-select");
 
         if (returnFocus) {
           trigger.focus();
@@ -255,6 +329,7 @@
         closeAllCustomSelects(instance);
         wrapper.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
+        mountFloatingMenu(instance, "custom-select");
 
         const selectedIndex = instance.getSelectedIndex();
         const resolvedIndex = focusIndex >= 0 ? focusIndex : selectedIndex;
@@ -454,12 +529,14 @@
       hiddenInput,
       trigger,
       menu,
+      menuHost: wrapper,
       optionsRoot,
       providerSelect,
       selectedValues: new Set(splitListValue(hiddenInput.value)),
       close(returnFocus = false) {
         wrapper.classList.remove("is-open");
         trigger.setAttribute("aria-expanded", "false");
+        unmountFloatingMenu(instance, "checkbox-select");
 
         if (returnFocus) {
           trigger.focus();
@@ -470,6 +547,7 @@
         closeAllCheckboxSelects(instance);
         wrapper.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
+        mountFloatingMenu(instance, "checkbox-select");
       },
       syncValue() {
         const values = Array.from(instance.selectedValues);
@@ -583,12 +661,15 @@
     }
   });
 
+  window.addEventListener("resize", syncOpenMenuPositions);
+  document.addEventListener("scroll", syncOpenMenuPositions, true);
+
   document.addEventListener("click", (event) => {
-    if (!event.target.closest(".custom-select")) {
+    if (!event.target.closest(".custom-select") && !event.target.closest(".floating-custom-select-menu")) {
       closeAllCustomSelects();
     }
 
-    if (!event.target.closest(".checkbox-select")) {
+    if (!event.target.closest(".checkbox-select") && !event.target.closest(".floating-checkbox-select-menu")) {
       closeAllCheckboxSelects();
     }
     
@@ -598,6 +679,7 @@
   });
 
   const closeModal = (backdrop) => {
+    body.classList.remove("has-modal");
     document.body.style.overflow = ""; // Restore page scroll
     const closeUrl = backdrop?.dataset.closeUrl || window.location.pathname;
     window.location.assign(closeUrl);
