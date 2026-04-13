@@ -808,19 +808,20 @@ fn build_discord_payload(
     }
 
     let mut embed = Map::new();
+    let raw_title = if is_compact {
+        compact_embed_title(event, rendered_body)
+    } else {
+        event
+            .title
+            .clone()
+            .unwrap_or_else(|| format!("{} · {}", event.event_type, event.repository.full_name))
+    };
     embed.insert(
         "title".to_string(),
-        Value::String(if is_compact {
-            compact_embed_title(event, rendered_body)
-        } else {
-            event
-                .title
-                .clone()
-                .unwrap_or_else(|| format!("{} · {}", event.event_type, event.repository.full_name))
-        }),
+        Value::String(truncate_to_max_chars(&raw_title, 256)),
     );
     if let Some(description) = compact_embed_description(event, rendered_body, is_compact) {
-        embed.insert("description".to_string(), Value::String(description));
+        embed.insert("description".to_string(), Value::String(truncate_to_max_chars(&description, 4096)));
     }
 
     if template.show_repo_link == 1 {
@@ -842,7 +843,7 @@ fn build_discord_payload(
         let mut author = Map::new();
         author.insert(
             "name".to_string(),
-            Value::String(actor_display_name(&event.actor)),
+            Value::String(truncate_to_max_chars(&actor_display_name(&event.actor), 256)),
         );
         if let Some(url) = event.actor.url.as_deref().filter(|value| !value.is_empty()) {
             author.insert("url".to_string(), Value::String(url.to_string()));
@@ -885,7 +886,7 @@ fn build_discord_payload(
         embed.insert(
             "footer".to_string(),
             json!({
-                "text": footer_text
+                "text": truncate_to_max_chars(footer_text, 2048)
             }),
         );
     }
@@ -2124,6 +2125,16 @@ fn actor_display_name(actor: &UnifiedActor) -> String {
     }
 }
 
+fn truncate_to_max_chars(s: &str, max_chars: usize) -> String {
+    if s.chars().count() > max_chars {
+        let mut truncated = s.chars().take(max_chars.saturating_sub(3)).collect::<String>();
+        truncated.push_str("...");
+        truncated
+    } else {
+        s.to_string()
+    }
+}
+
 fn markdown_link(label: &str, url: &str) -> String {
     format!("[{}]({})", label.replace(']', "\\]"), url)
 }
@@ -2136,14 +2147,17 @@ fn format_commit_line(commit: &UnifiedCommit) -> String {
         .map(|url| markdown_link(&commit.short_id, url))
         .unwrap_or_else(|| format!("`{}`", commit.short_id));
 
+    let first_line = commit.message.lines().next().unwrap_or("").trim();
+    let message_summary = truncate_to_max_chars(first_line, 100);
+
     if let Some(author_name) = commit
         .author_name
         .as_deref()
         .filter(|value| !value.is_empty())
     {
-        format!("- {commit_ref} {} ({author_name})", commit.message)
+        format!("- {commit_ref} {message_summary} ({author_name})")
     } else {
-        format!("- {commit_ref} {}", commit.message)
+        format!("- {commit_ref} {message_summary}")
     }
 }
 
